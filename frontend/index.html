@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Card Scanner Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f4f7fa;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            align-items: center;
+            justify-content: flex-start;
+            padding-top: 50px;
+        }
+
+        h1 {
+            margin-bottom: 10px;
+            font-size: 2em;
+            color: #333;
+        }
+
+        #uid {
+            font-size: 1.8em;
+            color: #0078D7;
+            margin-bottom: 30px;
+            background: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        table {
+            width: 90%;
+            max-width: 600px;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #0078D7;
+            color: white;
+            font-weight: normal;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        tr:hover {
+            background-color: #eef;
+        }
+
+        button {
+    background-color: #0078D7;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1em;
+}
+
+button:hover {
+    background-color: #005bb5;
+}
+
+.flash {
+    animation: flash 0.5s ease;
+}
+
+@keyframes flash {
+    0% { background-color: #e0f7fa; }
+    50% { background-color: #b2ebf2; }
+    100% { background-color: white; }
+}
+
+        @media (max-width: 600px) {
+            #uid {
+                font-size: 1.5em;
+            }
+            table {
+                font-size: 0.9em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Card Scanner</h1>
+    <div id="uid">Waiting for scan...</div>
+    <div style="margin-top: 20px;">
+        <button onclick="clearHistory()" style="padding: 10px 20px; margin-right: 10px;">Clear History</button>
+        <button onclick="rescanReader()" style="padding: 10px 20px;">Rescan</button>
+    </div>
+    
+    <div style="margin-top: 20px;">
+        <span id="tapCount">Taps: 0</span> | <span id="uniqueCount">Unique: 0</span>
+    </div>
+    
+    <table id="historyTable">
+        <thead>
+            <tr>
+                <th>UID</th>
+                <th>Scanned At</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- History rows will be injected here -->
+        </tbody>
+    </table>
+
+    <script>
+        let lastUID = '';
+
+async function fetchUID() {
+    try {
+        const res = await fetch('/uid');
+        const data = await res.json();
+        const uid = data.uid || 'Waiting for scan...';
+        const uidDiv = document.getElementById('uid');
+
+        // Only flash if UID changes
+        if (uid !== lastUID) {
+            uidDiv.classList.remove('flash');
+            void uidDiv.offsetWidth; // trick to restart animation
+            uidDiv.classList.add('flash');
+            lastUID = uid;
+        }
+
+        uidDiv.textContent = uid;
+    } catch (err) {
+        document.getElementById('uid').textContent = 'Error fetching UID';
+    }
+}
+
+
+        async function fetchHistory() {
+            try {
+                const res = await fetch('/history');
+                const data = await res.json();
+                const tbody = document.querySelector('#historyTable tbody');
+                tbody.innerHTML = '';
+
+                if (data.history && data.history.length > 0) {
+                    data.history.forEach(entry => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `<td>${entry.uid}</td><td>${new Date(entry.timestamp).toLocaleString()}</td>`;
+                        tbody.appendChild(row);
+                    });
+                } else {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `<td colspan="2">No history yet.</td>`;
+                    tbody.appendChild(row);
+                }
+            } catch (err) {
+                console.error('Error fetching history:', err);
+            }
+        }
+
+        async function clearHistory() {
+    if (confirm('Are you sure you want to clear scan history?')) {
+        await fetch('/clear-history', { method: 'POST' });
+        refresh(); // refresh the table
+    }
+}
+
+async function rescanReader() {
+    await fetch('/rescan', { method: 'POST' });
+    alert('Reader reset. Waiting for card...');
+}
+ 
+async function fetchTapCounter() {
+    try {
+        const res = await fetch('/tap-counter');
+        const data = await res.json();
+        document.getElementById('tapCount').textContent = `Taps: ${data.taps}`;
+    } catch (err) {
+        console.error('Error fetching tap counter:', err);
+    }
+}
+
+async function fetchUniqueCount() {
+    try {
+        const res = await fetch('/unique-uids');
+        const data = await res.json();
+        document.getElementById('uniqueCount').textContent = `Unique: ${data.unique}`;
+    } catch (err) {
+        console.error('Error fetching unique count:', err);
+    }
+}
+
+function refresh() {
+    fetchUID();
+    fetchHistory();
+    fetchTapCounter();
+    fetchUniqueCount();
+}
+
+setInterval(refresh, 1000);
+refresh();
+
+
+        
+    </script>
+</body>
+</html>
