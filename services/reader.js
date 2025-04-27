@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
 
+let latestUID = null;
 let lastUID = null;
 let lastUIDTime = 0;
 let tapCounter = 0;
