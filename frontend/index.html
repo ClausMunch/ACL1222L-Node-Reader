@@ -1,105 +1,135 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Card Scanner Dashboard</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-start py-10">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Card Scanner Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body
+    class="bg-gray-100 min-h-screen flex flex-col items-center justify-start py-10"
+  >
+    <h1 class="text-4xl font-bold text-gray-800 mb-8">
+      🎴 Card Scanner Dashboard
+    </h1>
 
-  <h1 class="text-4xl font-bold text-gray-800 mb-8">🎴 Card Scanner Dashboard</h1>
+    <div class="flex flex-col items-center space-y-6 w-full max-w-md">
+      <div class="bg-white rounded-2xl shadow-lg p-6 w-full text-center">
+        <div class="text-gray-500 text-lg mb-2">Current UID</div>
+        <div id="uid" class="text-2xl font-mono font-bold text-blue-600">
+          Waiting for scan...
+        </div>
+      </div>
 
-  <div class="flex flex-col items-center space-y-6 w-full max-w-md">
+      <div class="flex justify-center space-x-4">
+        <button
+          onclick="clearHistory()"
+          class="px-6 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl shadow"
+        >
+          Clear History
+        </button>
+        <button
+          onclick="rescanReader()"
+          class="px-6 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl shadow"
+        >
+          Rescan Reader
+        </button>
+        <button
+          onclick="downloadCSV()"
+          class="px-6 py-2 bg-green-500 hover:bg-green-600 text-white rounded-xl shadow"
+        >
+          Download CSV
+        </button>
+      </div>
 
-    <div class="bg-white rounded-2xl shadow-lg p-6 w-full text-center">
-      <div class="text-gray-500 text-lg mb-2">Current UID</div>
-      <div id="uid" class="text-2xl font-mono font-bold text-blue-600">Waiting for scan...</div>
+      <div class="flex justify-center space-x-8 text-gray-700 text-lg">
+        <div><span id="tapCount" class="font-bold">0</span> Taps</div>
+        <div><span id="uniqueCount" class="font-bold">0</span> Unique</div>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-lg p-6 w-full">
+        <h2 class="text-xl font-semibold mb-4 text-gray-800">
+          📝 Scan History
+        </h2>
+        <ul id="history" class="space-y-2 text-gray-600"></ul>
+      </div>
     </div>
 
-    <div class="flex justify-center space-x-4">
-      <button onclick="clearHistory()" class="px-6 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl shadow">Clear History</button>
-      <button onclick="rescanReader()" class="px-6 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl shadow">Rescan Reader</button>
-    </div>
-
-    <div class="flex justify-center space-x-8 text-gray-700 text-lg">
-      <div><span id="tapCount" class="font-bold">0</span> Taps</div>
-      <div><span id="uniqueCount" class="font-bold">0</span> Unique</div>
-    </div>
-
-    <div class="bg-white rounded-2xl shadow-lg p-6 w-full">
-      <h2 class="text-xl font-semibold mb-4 text-gray-800">📝 Scan History</h2>
-      <ul id="history" class="space-y-2 text-gray-600"></ul>
-    </div>
-
-  </div>
-
-  <script>
-    async function fetchUID() {
-      try {
-        const res = await fetch('/uid');
-        const data = await res.json();
-        document.getElementById('uid').textContent = data.uid;
-      } catch (err) {
-        console.error('Error fetching UID:', err);
+    <script>
+      async function fetchUID() {
+        try {
+          const res = await fetch("/uid");
+          const data = await res.json();
+          document.getElementById("uid").textContent = data.uid;
+        } catch (err) {
+          console.error("Error fetching UID:", err);
+        }
       }
-    }
 
-    async function fetchHistory() {
-      try {
-        const res = await fetch('/history');
-        const data = await res.json();
-        const historyList = document.getElementById('history');
-        historyList.innerHTML = '';
-        data.history.forEach(item => {
-          const li = document.createElement('li');
-          li.textContent = `${item.uid} - ${new Date(item.timestamp).toLocaleString()}`;
-          li.className = "border-b pb-1";
-          historyList.appendChild(li);
-        });
-      } catch (err) {
-        console.error('Error fetching history:', err);
+      async function fetchHistory() {
+        try {
+          const res = await fetch("/history");
+          const data = await res.json();
+          const historyList = document.getElementById("history");
+          historyList.innerHTML = "";
+          data.history.forEach((item) => {
+            const li = document.createElement("li");
+            li.textContent = `${item.uid} - ${new Date(
+              item.timestamp
+            ).toLocaleString()}`;
+            li.className = "border-b pb-1";
+            historyList.appendChild(li);
+          });
+        } catch (err) {
+          console.error("Error fetching history:", err);
+        }
       }
-    }
 
-    async function fetchTapCounter() {
-      try {
-        const res = await fetch('/tap-counter');
-        const data = await res.json();
-        document.getElementById('tapCount').textContent = data.taps;
-      } catch (err) {
-        console.error('Error fetching tap counter:', err);
+      async function fetchTapCounter() {
+        try {
+          const res = await fetch("/tap-counter");
+          const data = await res.json();
+          document.getElementById("tapCount").textContent = data.taps;
+        } catch (err) {
+          console.error("Error fetching tap counter:", err);
+        }
       }
-    }
 
-    async function fetchUniqueCount() {
-      try {
-        const res = await fetch('/unique-uids');
-        const data = await res.json();
-        document.getElementById('uniqueCount').textContent = data.unique;
-      } catch (err) {
-        console.error('Error fetching unique count:', err);
+      async function fetchUniqueCount() {
+        try {
+          const res = await fetch("/unique-uids");
+          const data = await res.json();
+          document.getElementById("uniqueCount").textContent = data.unique;
+        } catch (err) {
+          console.error("Error fetching unique count:", err);
+        }
       }
-    }
 
-    async function clearHistory() {
-      await fetch('/clear-history', { method: 'POST' });
+      async function clearHistory() {
+        try {
+          await fetch("/clear-history", { method: "POST" });
+          await refresh(); // immediate update
+        } catch (err) {
+          console.error("Error clearing history:", err);
+        }
+      }
+
+      async function rescanReader() {
+        await fetch("/rescan", { method: "POST" });
+      }
+
+      function downloadCSV() {
+        window.open("/export-csv", "_blank");
+      }
+
+      function refresh() {
+        fetchUID();
+        fetchHistory();
+        fetchTapCounter();
+        fetchUniqueCount();
+      }
+
+      setInterval(refresh, 1000);
       refresh();
-    }
-
-    async function rescanReader() {
-      await fetch('/rescan', { method: 'POST' });
-    }
-
-    function refresh() {
-      fetchUID();
-      fetchHistory();
-      fetchTapCounter();
-      fetchUniqueCount();
-    }
-
-    setInterval(refresh, 1000);
-    refresh();
-  </script>
-
-</body>
+    </script>
+  </body>
 </html>
