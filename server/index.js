@@ -1,5 +1,6 @@
 const express = require("express");
 const path = require("path");
+const fs = require("fs");
 const {
   initializeReader,
   getLatestUID,
@@ -9,15 +10,16 @@ const {
   getTapCounter,
   getUniqueUIDs,
   getUniqueUIDsCount,
+  isScannerConnected,
+  connectedReaderName
 } = require("../services/reader");
-const fs = require("fs");
 
 const app = express();
 const PORT = 3000;
 
 app.use(express.static(path.join(__dirname, "../frontend")));
 
-// API routes
+// API Routes
 app.get("/uid", (req, res) => {
   res.json({ uid: getLatestUID() });
 });
@@ -47,19 +49,24 @@ app.get("/unique-uids", (req, res) => {
 // CSV Export route
 app.get("/export-csv", (req, res) => {
   const uids = getUniqueUIDs();
-
   if (!uids.length) {
     return res.status(404).send("No UIDs available to export.");
   }
-
   const csvContent = "UID\n" + uids.join("\n");
-
   res.setHeader("Content-Type", "text/csv");
   res.setHeader(
     "Content-Disposition",
     'attachment; filename="uids_export.csv"'
   );
   res.send(csvContent);
+});
+
+// Scanner status route
+app.get('/scanner-status', (req, res) => {
+  res.json({
+    connected: isScannerConnected(),
+    readerName: connectedReaderName
+  });
 });
 
 // Start server and reader

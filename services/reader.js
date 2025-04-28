@@ -9,31 +9,28 @@ let latestUID = null;
 let lastUID = null;
 let lastUIDTime = 0;
 let tapCounter = 0;
-
 let uniqueUIDs = new Set();
-const uniqueUIDsPath = path.join(__dirname, "../unique_uids.json");
 let scanHistory = [];
 
+let readerConnected = false;
+let connectedReaderName = "No reader detected";
+
 const historyPath = path.join(__dirname, "../history.json");
+const uniqueUIDsPath = path.join(__dirname, "../unique_uids.json");
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function saveUniqueUIDs() {
-  try {
-    fs.writeFileSync(uniqueUIDsPath, JSON.stringify([...uniqueUIDs], null, 2));
-  } catch (err) {
-    console.error("Error saving unique UIDs:", err);
-  }
+  fs.writeFileSync(uniqueUIDsPath, JSON.stringify([...uniqueUIDs], null, 2));
 }
 
 function loadUniqueUIDs() {
   if (fs.existsSync(uniqueUIDsPath)) {
     try {
       const data = fs.readFileSync(uniqueUIDsPath);
-      const arr = JSON.parse(data);
-      uniqueUIDs = new Set(arr);
+      uniqueUIDs = new Set(JSON.parse(data));
       console.log("Loaded unique UIDs:", uniqueUIDs.size);
     } catch (err) {
       console.error("Error loading unique UIDs:", err);
@@ -45,18 +42,13 @@ async function beepReader() {
   const beepCommand = Buffer.from([0xff, 0x00, 0x52, 0x00, 0x00]);
   try {
     await reader.transmitControl(beepCommand);
-    // Beep silently (no console output)
   } catch (err) {
     console.error("Beep error:", err);
   }
 }
 
 function saveHistory() {
-  try {
-    fs.writeFileSync(historyPath, JSON.stringify(scanHistory, null, 2));
-  } catch (err) {
-    console.error("Error saving history:", err);
-  }
+  fs.writeFileSync(historyPath, JSON.stringify(scanHistory, null, 2));
 }
 
 function loadHistory() {
@@ -75,10 +67,7 @@ function loadHistory() {
 }
 
 function addToHistory(uid) {
-  scanHistory.unshift({
-    uid,
-    timestamp: new Date().toISOString(),
-  });
+  scanHistory.unshift({ uid, timestamp: new Date().toISOString() });
   if (scanHistory.length > 10) {
     scanHistory = scanHistory.slice(0, 10);
   }
@@ -101,43 +90,57 @@ async function refreshReaderLCD() {
 }
 
 async function initializeReader() {
+  const MAX_RETRIES = 60;
+  let retries = 0;
+
+  async function tryInitialize() {
     try {
-        await reader.initialize((err) => {
-            if (err) {
-                console.error('❌ Reader initialization error:', err.message || err);
-            }
-        }, debug = false);
-
-        await sleep(300);
-
-        // Try-catch around reader status check
-        if (!reader || typeof reader.readUUID !== 'function') {
-            console.error('❌ No NFC Reader connected or not ready.');
-            console.error('🔌 Please connect a valid reader and restart.');
-            process.exit(1);
+      await reader.initialize((err) => {
+        if (err) {
+          console.error("❌ Reader initialization error:", err.message || err);
         }
+      }, false);
 
-        console.log('✅ NFC Reader initialized and ready.');
+      await sleep(300);
 
-        await reader.turnOnBacklight();
-        await reader.clearLCD();
-        await reader.writeToLCD('Waiting for', 'card...');
+      if (!reader || typeof reader.readUUID !== "function") {
+        readerConnected = false;
+        throw new Error("Reader not ready");
+      }
 
-        loadHistory();
-        loadUniqueUIDs();
+      readerConnected = true;
+      connectedReaderName = reader.reader?.name || "Unknown NFC Reader";
+      console.log("✅ NFC Reader initialized:", connectedReaderName);
 
-        setupKeypressListener();
-        listenForCards();
+      await reader.turnOnBacklight();
+      await reader.clearLCD();
+      await reader.writeToLCD("Waiting for", "card...");
 
+      loadHistory();
+      loadUniqueUIDs();
+
+      setupKeypressListener();
+      listenForCards();
     } catch (err) {
-        console.error('❌ Failed to initialize NFC Reader.');
-        console.error('🔌 Please ensure the reader is connected.');
-        console.error('Error details:', err.message || err);
+      retries++;
+      console.error(
+        `⚠️ Reader not available (Attempt ${retries}/${MAX_RETRIES})`
+      );
+
+      if (retries >= MAX_RETRIES) {
+        console.error("❌ Unable to connect to NFC Reader after 5 minutes.");
         process.exit(1);
+      }
+      readerConnected = false;
+      connectedReaderName = "No Reader Connected";
+
+      console.log("🔄 Retrying in 5 seconds...");
+      setTimeout(tryInitialize, 5000);
     }
+  }
+
+  await tryInitialize();
 }
-
-
 
 async function listenForCards() {
   while (true) {
@@ -174,17 +177,31 @@ async function listenForCards() {
 
       await beepReader();
       await reader.writeToLCD("Card UID:", scannedUID);
-
       child_process.spawn("clip").stdin.end(scannedUID);
 
       await sleep(2000);
-
-      await reader.clearLCD();
-      await reader.writeToLCD("Waiting for", "card...");
-
+      await refreshReaderLCD();
       await reader.stopReadUUID();
     } catch (err) {
       console.error("Error while scanning:", err);
+
+      if (
+        err.message &&
+        (err.message.includes("SCardControl error") ||
+          err.message.includes("handle invalid") ||
+          err.message.includes("Reader not connected"))
+      ) {
+        console.log(
+          "⚠️ Reader seems disconnected. Attempting to reinitialize..."
+        );
+
+        readerConnected = false;
+
+        await sleep(5000); // short pause
+        await initializeReader(); // full restart!
+        return; // exit current listen loop
+      }
+
       console.log("Resetting reader state...");
       await sleep(500);
       await refreshReaderLCD();
@@ -197,9 +214,7 @@ function setupKeypressListener() {
   if (process.stdin.isTTY) {
     process.stdin.setRawMode(true);
   }
-
   console.log('Press "q" or "x" to quit.');
-
   process.stdin.on("keypress", (str, key) => {
     if (
       key.name === "q" ||
@@ -232,6 +247,16 @@ function getUniqueUIDsCount() {
   return uniqueUIDs.size;
 }
 
+function isScannerConnected() {
+    return readerConnected;
+}
+
+function getScannerInfo() {
+  return {
+    name: connectedReaderName || "No reader detected",
+  };
+}
+
 module.exports = {
   initializeReader,
   getLatestUID,
@@ -241,4 +266,7 @@ module.exports = {
   getTapCounter,
   getUniqueUIDs,
   getUniqueUIDsCount,
+  isScannerConnected,
+  getScannerInfo,
+  connectedReaderName,
 };
