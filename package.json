@@ -1,5 +1,5 @@
 {
-  "name": "cardscan-local",
+  "name": "ACL1222L-Node-Reader",
   "version": "1.0.0",
   "description": "ACR1222L NFC scanner with web server",
   "main": "server/index.js",
@@ -7,7 +7,7 @@
     "start": "node server/index.js"
   },
   "dependencies": {
-    "acr1222l": "your-sdk-version-here",
+    "acr1222l": "^0.6.1",
     "express": "^4.21.2"
   }
 }
