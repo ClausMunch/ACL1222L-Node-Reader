@@ -101,23 +101,43 @@ async function refreshReaderLCD() {
 }
 
 async function initializeReader() {
-  await reader.initialize((err) => {
-    console.error("Reader error:", err);
-  }, (debug = false));
+    try {
+        await reader.initialize((err) => {
+            if (err) {
+                console.error('❌ Reader initialization error:', err.message || err);
+            }
+        }, debug = false);
 
-  await sleep(300);
+        await sleep(300);
 
-  await reader.turnOnBacklight();
-  await reader.clearLCD();
-  await reader.writeToLCD("Waiting for", "card...");
+        // Try-catch around reader status check
+        if (!reader || typeof reader.readUUID !== 'function') {
+            console.error('❌ No NFC Reader connected or not ready.');
+            console.error('🔌 Please connect a valid reader and restart.');
+            process.exit(1);
+        }
 
-  loadHistory();
-  loadUniqueUIDs();
+        console.log('✅ NFC Reader initialized and ready.');
 
-  setupKeypressListener(); // <<< enable q/x exit
+        await reader.turnOnBacklight();
+        await reader.clearLCD();
+        await reader.writeToLCD('Waiting for', 'card...');
 
-  listenForCards();
+        loadHistory();
+        loadUniqueUIDs();
+
+        setupKeypressListener();
+        listenForCards();
+
+    } catch (err) {
+        console.error('❌ Failed to initialize NFC Reader.');
+        console.error('🔌 Please ensure the reader is connected.');
+        console.error('Error details:', err.message || err);
+        process.exit(1);
+    }
 }
+
+
 
 async function listenForCards() {
   while (true) {
